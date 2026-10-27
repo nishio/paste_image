@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "paste-image",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+
+  // paste UI。静的アセットに無いパスだけ Worker に落ちてくる
+  "assets": {
+    "directory": "./public"
+  },
+
+  "r2_buckets": [
+    { "binding": "BLOBS", "bucket_name": "paste-image" }
+  ],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "paste-image",
+      // `wrangler d1 create paste-image` が出力した id に差し替える
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "observability": { "enabled": true }
+
+  // 本番では独自ドメインを割り当てる (DESIGN.md §2)
+  // "routes": [{ "pattern": "w.example.com", "custom_domain": true }]
+}

@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>paste_image</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg:#fff; --fg:#16171c; --muted:#6b6c7a; --line:#e4e4ea; --card:#fafafc;
+    --accent:#2f6df6; --danger:#c8423a; --ok:#2a8a4a;
+  }
+  :root:not([data-theme="light"]) { }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:#14151a; --fg:#e9e9ef; --muted:#9a9bab; --line:#2b2c35; --card:#1b1c23;
+      --accent:#6b9bff; --danger:#f0776c; --ok:#5fcf8a;
+    }
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--fg); }
+  body { font:14px/1.65 system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; padding:0 16px 64px; }
+  .wrap { max-width:860px; margin:0 auto; }
+  header { display:flex; align-items:baseline; gap:12px; padding:20px 0 12px; }
+  h1 { font-size:16px; margin:0; letter-spacing:.02em; }
+  header .sub { color:var(--muted); font-size:12px; }
+  header .spacer { flex:1; }
+  button, input { font:inherit; color:inherit; }
+  button { background:var(--card); border:1px solid var(--line); border-radius:6px;
+           padding:5px 10px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.link { background:none; border:none; padding:2px 4px; color:var(--muted); }
+  button.link:hover { color:var(--accent); }
+  input[type=text], input[type=password] {
+    background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:7px 10px; width:100%;
+  }
+  #drop { border:1.5px dashed var(--line); border-radius:10px; background:var(--card);
+          padding:34px 16px; text-align:center; color:var(--muted); transition:.12s; }
+  #drop.hot { border-color:var(--accent); color:var(--fg); }
+  #drop kbd { border:1px solid var(--line); border-bottom-width:2px; border-radius:4px;
+              padding:1px 5px; font:12px/1 ui-monospace,monospace; color:var(--fg); }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .card { border:1px solid var(--line); border-radius:8px; background:var(--card);
+          padding:10px; display:flex; gap:12px; margin-top:10px; }
+  .card img { width:112px; height:84px; object-fit:cover; border-radius:5px;
+              background:#8884; flex:none; }
+  .card .meta { flex:1; min-width:0; }
+  .card .meta .t { font-size:12px; color:var(--muted); display:flex; gap:10px; flex-wrap:wrap; }
+  .card .urls { display:flex; gap:6px; flex-wrap:wrap; margin-top:6px; }
+  code { font:12px/1.5 ui-monospace,SFMono-Regular,monospace; word-break:break-all; }
+  a { color:var(--accent); }
+  .note { color:var(--muted); font-size:12px; }
+  .err { color:var(--danger); }
+  h2 { font-size:13px; color:var(--muted); font-weight:600; margin:28px 0 4px;
+       text-transform:uppercase; letter-spacing:.06em; }
+  #gate { display:none; }
+  #gate.on { display:block; }
+  #main.off { display:none; opacity:.4; pointer-events:none; }
+  @media (max-width:520px) { .card img { width:72px; height:56px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>paste_image</h1>
+    <span class="sub">個人用 Gyazo</span>
+    <span class="spacer"></span>
+    <button class="link" id="export">export</button>
+    <button class="link" id="signout">token</button>
+  </header>
+
+  <section id="gate">
+    <h2>token</h2>
+    <p class="note">Worker secret <code>UPLOAD_TOKEN</code> と同じ値を入れてください。localStorage に保存されます。</p>
+    <div class="row">
+      <input type="password" id="token" placeholder="upload token" autocomplete="off" style="flex:1;min-width:200px">
+      <button id="save">保存</button>
+    </div>
+    <p class="note err" id="gateErr"></p>
+  </section>
+
+  <section id="main">
+    <div id="drop">
+      <p style="margin:0 0 6px"><kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>V</kbd> で貼り付け、またはここにドロップ</p>
+      <p class="note" style="margin:0">
+        <button id="pick">ファイルを選択</button>
+        <input type="file" id="file" accept="image/*" multiple hidden>
+      </p>
+    </div>
+    <p class="note err" id="uploadErr"></p>
+
+    <h2>recent</h2>
+    <div id="list"></div>
+    <div class="row" style="margin-top:12px">
+      <button id="more" hidden>もっと見る</button>
+      <span class="note" id="listNote"></span>
+    </div>
+  </section>
+</div>
+
+<script type="module">
+const $ = (s) => document.querySelector(s);
+const KEY = 'paste_image.token';
+let token = localStorage.getItem(KEY) || '';
+let nextBefore = null;
+
+function setGate(on, msg) {
+  $('#gate').classList.toggle('on', on);
+  $('#main').classList.toggle('off', on);
+  $('#gateErr').textContent = msg || '';
+  if (on) $('#token').focus();
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { Authorization: `Bearer ${token}`, ...(opts.headers || {}) },
+  });
+  if (res.status === 401) {
+    setGate(true, 'token が違います');
+    throw new Error('unauthorized');
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail || body.error || `HTTP ${res.status}`);
+  }
+  return res;
+}
+
+/* ---- upload ---- */
+
+async function uploadBlob(blob, sourceUrl) {
+  if (!blob.type.startsWith('image/')) throw new Error(`非対応の形式: ${blob.type || 'unknown'}`);
+  const qs = sourceUrl ? `?source=${encodeURIComponent(sourceUrl)}` : '';
+  const res = await api(`/api/items${qs}`, {
+    method: 'POST',
+    headers: { 'Content-Type': blob.type },
+    body: blob,
+  });
+  return res.json();
+}
+
+async function handleBlobs(blobs) {
+  $('#uploadErr').textContent = '';
+  for (const blob of blobs) {
+    try {
+      const item = await uploadBlob(blob);
+      $('#list').prepend(card(item));
+      await copy(item.raw_url);
+    } catch (e) {
+      $('#uploadErr').textContent = e.message;
+    }
+  }
+}
+
+document.addEventListener('paste', (e) => {
+  const blobs = [...(e.clipboardData?.items || [])]
+    .filter((i) => i.kind === 'file' && i.type.startsWith('image/'))
+    .map((i) => i.getAsFile())
+    .filter(Boolean);
+  if (blobs.length) { e.preventDefault(); handleBlobs(blobs); }
+});
+
+const drop = $('#drop');
+for (const ev of ['dragenter', 'dragover']) {
+  drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('hot'); });
+}
+for (const ev of ['dragleave', 'drop']) {
+  drop.addEventListener(ev, () => drop.classList.remove('hot'));
+}
+drop.addEventListener('drop', (e) => {
+  e.preventDefault();
+  handleBlobs([...e.dataTransfer.files].filter((f) => f.type.startsWith('image/')));
+});
+$('#pick').onclick = () => $('#file').click();
+$('#file').onchange = (e) => { handleBlobs([...e.target.files]); e.target.value = ''; };
+
+/* ---- list ---- */
+
+function card(item) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.dataset.id = item.id;
+
+  const img = document.createElement('img');
+  img.src = item.raw_url;
+  img.loading = 'lazy';
+  img.alt = '';
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+
+  const t = document.createElement('div');
+  t.className = 't';
+  const when = new Date(item.created_at).toLocaleString();
+  const dim = item.width && item.height ? `${item.width}×${item.height}` : '';
+  t.append(span(when), span(dim), span(fmtBytes(item.bytes)));
+
+  const a = document.createElement('a');
+  a.href = item.page_url;
+  a.target = '_blank';
+  a.rel = 'noreferrer';
+  a.append(Object.assign(document.createElement('code'), { textContent: item.raw_url }));
+
+  const urls = document.createElement('div');
+  urls.className = 'urls';
+  urls.append(
+    copyBtn('raw', () => item.raw_url),
+    copyBtn('page', () => item.page_url),
+    copyBtn('markdown', () => `![](${item.raw_url})`),
+    copyBtn('cosense', () => `[${item.raw_url}]`),
+    copyBtn('html', () => `<img src="${item.raw_url}">`),
+  );
+
+  const del = document.createElement('button');
+  del.className = 'link';
+  del.textContent = 'delete';
+  del.style.color = 'var(--danger)';
+  del.onclick = async () => {
+    if (!confirm('削除します。URL を知っている人も見られなくなります。')) return;
+    try {
+      await api(`/api/items/${item.id}`, { method: 'DELETE' });
+      el.remove();
+    } catch (e) { alert(e.message); }
+  };
+  urls.append(del);
+
+  meta.append(t, a, urls);
+  el.append(img, meta);
+  return el;
+}
+
+function span(text) {
+  const s = document.createElement('span');
+  s.textContent = text;
+  return s;
+}
+
+function copyBtn(label, get) {
+  const b = document.createElement('button');
+  b.className = 'link';
+  b.textContent = label;
+  b.onclick = async () => {
+    await copy(get());
+    const old = b.textContent;
+    b.textContent = '✓ ' + old;
+    b.style.color = 'var(--ok)';
+    setTimeout(() => { b.textContent = old; b.style.color = ''; }, 900);
+  };
+  return b;
+}
+
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); } catch { /* 権限が無い環境では黙って諦める */ }
+}
+
+function fmtBytes(n) {
+  if (!n) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / 1048576).toFixed(1)} MB`;
+}
+
+async function loadMore() {
+  const qs = nextBefore ? `?before=${nextBefore}` : '';
+  const { items, next_before } = await (await api(`/api/items${qs}`)).json();
+  for (const it of items) $('#list').append(card(it));
+  nextBefore = next_before;
+  $('#more').hidden = !next_before;
+  $('#listNote').textContent = $('#list').children.length ? '' : 'まだ何もありません';
+}
+$('#more').onclick = () => loadMore().catch((e) => ($('#listNote').textContent = e.message));
+
+/* ---- token ---- */
+
+$('#save').onclick = async () => {
+  token = $('#token').value.trim();
+  if (!token) return;
+  localStorage.setItem(KEY, token);
+  await start();
+};
+$('#token').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#save').click(); });
+$('#signout').onclick = () => {
+  localStorage.removeItem(KEY);
+  token = '';
+  $('#list').replaceChildren();
+  setGate(true, '');
+};
+$('#export').onclick = async () => {
+  try {
+    const res = await api('/api/export');
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement('a'), {
+      href: url,
+      download: `paste_image-export-${new Date().toISOString().slice(0, 10)}.jsonl`,
+    });
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert(e.message); }
+};
+
+async function start() {
+  if (!token) return setGate(true, '');
+  try {
+    nextBefore = null;
+    $('#list').replaceChildren();
+    await loadMore();
+    setGate(false);
+  } catch (e) {
+    if (e.message !== 'unauthorized') $('#listNote').textContent = e.message;
+  }
+}
+start();
+</script>
