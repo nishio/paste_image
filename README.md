@@ -6,6 +6,9 @@ Cloudflare Workers + R2 + D1 の単一 Worker で動く。
 最終目標は「LLM が読み書きできる個人 Wiki」で、これはその Phase 0。
 設計の根拠と判断の記録は [DESIGN.md](DESIGN.md)。
 
+作業から得た知識は [wiki/](wiki/) に filing back している([index](wiki/index.md))。
+仕様は DESIGN.md、使い方はこの README、**なぜそうしたか**は wiki にある。
+
 ## できること (Phase 0)
 
 - ブラウザで `Ctrl/⌘+V` / ドラッグ&ドロップ / ファイル選択 → アップロード、URL を自動コピー
