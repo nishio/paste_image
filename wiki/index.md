@@ -17,6 +17,10 @@
 
 - [Cloudflare Workers の制約](pages/cloudflare-workers-constraints.md) — 無料枠、CPU 10 ms、キャッシュ、独自ドメイン、wrangler dev で踏んだこと
 
+## 運用
+
+- [デプロイに何が必要か](pages/deploy.md) — deploy が作る4つのリソース、認証経路と必要な権限、R2 の支払い方法、やり直せないこと
+
 ## 実装で分かったこと
 
 - [SVG を受け付けない理由](pages/svg-upload-risk.md) — 書き込みトークンを持つ UI と同一オリジンで配信する構成の話
