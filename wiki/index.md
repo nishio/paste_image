@@ -11,6 +11,7 @@
 ## 設計の概念
 
 - [Capability URL](pages/capability-url.md) — 推測不能 URL を権限とみなす公開モデル。成立条件と、削除を Phase 0 に入れた理由
+- [blob ストアは差し替えられる](pages/blob-store-swappable.md) — 依存しているのは4操作だけ。R2 / KV / S3 の比較と、結果整合性が無害な理由
 - [content-addressed storage](pages/content-addressed-storage.md) — sha256 を key にして得たもの、代償、同じ画像を貼ったページが繋がる副産物
 
 ## プラットフォーム

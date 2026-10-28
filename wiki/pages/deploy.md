@@ -53,19 +53,36 @@ Worker が R2 や D1 を bind していても、デプロイするだけなら W
 
 出典: [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/workers/)
 
-## R2 には支払い方法の登録が要る
+## R2 には支払い方法の登録が要る(ほぼ確実、ただし未確認)
 
 **無料枠の範囲で使うつもりでも、R2 の有効化には支払い方法の登録が要る。**
-理由は、R2 の使用量に上限キャップが無く、無料枠を超えた分は課金されるから
-(+ 不正防止 / KYC)。ここが最初の関門になる。
+2026-10-28 時点でそう判断しているが、**公式ドキュメントに「カードが必須」と
+明記された一文は見つけられていない**。断定の根拠はコミュニティの報告。
+
+- 2026-08 の Cloudflare コミュニティに、無料枠でも R2 サブスクリプション追加時に
+  請求情報の入力が必須になるという報告がある
+- 理由は R2 の使用量にキャップが無く、超えた分が課金されるから(+ 不正防止 / KYC)
+- **R2 の製品ページには「クレジットカード不要」と書かれているが、これは約3年前の記載**で、
+  現在の挙動と食い違う。「カード不要」と書いている記事はこれを引いている可能性がある
+- **Workers と Pages はカード登録なしで使える。R2 だけが違う**
+
+確実に知る方法は一つで、ダッシュボードで Storage & databases → R2 → Overview を開き、
+請求情報のダイアログが出るかどうかを見る。**ここは実際に確認したら書き換えること。**
+
+登録しても即課金ではなく、無料枠を超えた分だけの請求になる。
+ただし「超えたら止まる」のではなく「超えた分が請求される」点は変わらない
+(この性質が Workers KV とは逆である点は [[blob-store-swappable]])。
 
 - 手順: Storage & databases → R2 → Overview でサブスクリプションを追加する
-- 使用量は自動では止まらない。無料枠は「超えたら止まる」ではなく「超えた分が請求される」
 - 使用量ベースのサービスなので、カードへの事前承認(与信)が走ることがある。
   カードが失効すると**バケットにアクセスできなくなる**
 
-出典: [R2 Get started](https://developers.cloudflare.com/r2/get-started/) /
+出典: [Why using R2 free tier involves giving card info?](https://community.cloudflare.com/t/why-using-r2-free-tier-involves-giving-card-info/945179) /
+[R2 Get started](https://developers.cloudflare.com/r2/get-started/) /
 [Billing policy](https://developers.cloudflare.com/billing/understand/billing-policy/)
+
+カードを登録したくない場合、blob の置き場を Workers KV に差し替えれば
+支払い方法なしで動く。トレードオフは [[blob-store-swappable]]。
 
 無料枠の数値は [[cloudflare-workers-constraints]]。
 
